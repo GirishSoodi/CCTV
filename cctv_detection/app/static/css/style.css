@@ -1,0 +1,107 @@
+/* Main styles for CCTV Individual Detection System */
+
+body {
+    background-color: #f8f9fa;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+}
+
+.navbar-brand {
+    font-weight: bold;
+}
+
+.card {
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+    border: none;
+    margin-bottom: 20px;
+}
+
+.card-header {
+    font-weight: bold;
+}
+
+.footer {
+    border-top: 1px solid #e9ecef;
+}
+
+/* Custom scrollbar for video selection */
+.video-selection::-webkit-scrollbar {
+    width: 8px;
+}
+
+.video-selection::-webkit-scrollbar-track {
+    background: #f1f1f1;
+    border-radius: 10px;
+}
+
+.video-selection::-webkit-scrollbar-thumb {
+    background: #888;
+    border-radius: 10px;
+}
+
+.video-selection::-webkit-scrollbar-thumb:hover {
+    background: #555;
+}
+
+/* Status indicators */
+.status-indicator {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    display: inline-block;
+    margin-right: 5px;
+}
+
+.status-active {
+    background-color: #28a745;
+    box-shadow: 0 0 5px #28a745;
+}
+
+.status-inactive {
+    background-color: #dc3545;
+    box-shadow: 0 0 5px #dc3545;
+}
+
+/* Loading spinner */
+.loading-spinner {
+    display: inline-block;
+    width: 2rem;
+    height: 2rem;
+    border: 0.25rem solid rgba(0, 0, 0, 0.1);
+    border-right-color: #007bff;
+    border-radius: 50%;
+    animation: spinner 1s linear infinite;
+}
+
+@keyframes spinner {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+/* Dashboard styles */
+.metrics-card.border-primary {
+    border-left-color: #007bff !important;
+}
+
+.metrics-card.border-success {
+    border-left-color: #28a745 !important;
+}
+
+.metrics-card.border-info {
+    border-left-color: #17a2b8 !important;
+}
+
+.metrics-card.border-warning {
+    border-left-color: #ffc107 !important;
+}
+
+.metrics-card h2 {
+    font-weight: 600;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .video-container {
+        padding-bottom: 75%;
+    }
+}

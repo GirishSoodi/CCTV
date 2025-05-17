@@ -1,0 +1,685 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    .productivity-card {
+        transition: all 0.3s ease;
+        border-left: 5px solid;
+    }
+    
+    .productivity-high {
+        border-left-color: #28a745 !important;
+    }
+    
+    .productivity-medium {
+        border-left-color: #ffc107 !important;
+    }
+    
+    .productivity-low {
+        border-left-color: #dc3545 !important;
+    }
+    
+    .productivity-score {
+        font-size: 2.5rem;
+        font-weight: bold;
+    }
+    
+    .desk-zone-container {
+        position: relative;
+        width: 100%;
+        height: 0;
+        padding-bottom: 56.25%;
+        margin-bottom: 20px;
+        background-color: #f8f9fa;
+        border: 1px solid #dee2e6;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    
+    .desk-zone {
+        position: absolute;
+        border: 2px dashed #28a745;
+        background-color: rgba(40, 167, 69, 0.1);
+        cursor: move;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: bold;
+        color: #28a745;
+    }
+    
+    .productivity-chart-container {
+        height: 300px;
+    }
+    
+    .time-stats {
+        display: flex;
+        margin-top: 10px;
+    }
+    
+    .time-in-zone, .time-out-zone {
+        flex: 1;
+        padding: 10px;
+        border-radius: 5px;
+        text-align: center;
+    }
+    
+    .time-in-zone {
+        background-color: rgba(40, 167, 69, 0.1);
+        margin-right: 5px;
+    }
+    
+    .time-out-zone {
+        background-color: rgba(220, 53, 69, 0.1);
+        margin-left: 5px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Productivity Monitoring Dashboard</h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="fas fa-cctv me-2"></i>Camera Selection</h5>
+            </div>
+            <div class="card-body">
+                <div class="video-selection">
+                    <div class="form-check">
+                        <input class="form-check-input select-all" type="checkbox" id="selectAll">
+                        <label class="form-check-label" for="selectAll">
+                            <strong>Select All</strong>
+                        </label>
+                    </div>
+                    <hr>
+                    {% for video in videos %}
+                    <div class="form-check">
+                        <input class="form-check-input video-checkbox" type="checkbox" value="{{ video }}" id="video-{{ loop.index }}">
+                        <label class="form-check-label" for="video-{{ loop.index }}">
+                            {{ video }}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button id="startMonitoring" class="btn btn-success w-100 mt-3">
+                    <i class="fas fa-play me-2"></i>Start Monitoring
+                </button>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>Productivity Stats</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Total Individuals:</strong> <span id="totalIndividuals">0</span></p>
+                <p><strong>High Productivity:</strong> <span id="highProductivity">0</span></p>
+                <p><strong>Medium Productivity:</strong> <span id="mediumProductivity">0</span></p>
+                <p><strong>Low Productivity:</strong> <span id="lowProductivity">0</span></p>
+                <p><strong>Average Score:</strong> <span id="averageScore">0%</span></p>
+                <p><strong>Last Updated:</strong> <span id="lastUpdated">-</span></p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-header bg-success text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-user-clock me-2"></i>Individual Productivity</h5>
+                <button id="refreshProductivity" class="btn btn-sm btn-outline-light">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="productivityContainer" class="row">
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-spinner fa-spin fa-3x mb-3 text-muted"></i>
+                        <h4 class="text-muted">Loading productivity data...</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="card mt-4">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="fas fa-desktop me-2"></i>Desk Zone Configuration</h5>
+            </div>
+            <div class="card-body">
+                <div class="row mb-3">
+                    <div class="col-md-4">
+                        <select id="cameraSelect" class="form-select">
+                            <option value="">Select Camera</option>
+                            {% for video in videos %}
+                            <option value="{{ video }}">{{ video }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <select id="deskSelect" class="form-select">
+                            <option value="">Select Desk</option>
+                            <option value="1">Desk 1</option>
+                            <option value="2">Desk 2</option>
+                            <option value="3">Desk 3</option>
+                            <option value="4">Desk 4</option>
+                        </select>
+                    </div>
+                    <div class="col-md-4">
+                        <button id="saveDeskZone" class="btn btn-primary w-100">
+                            <i class="fas fa-save me-2"></i>Save Desk Zone
+                        </button>
+                    </div>
+                </div>
+                
+                <div id="deskZoneEditor" class="desk-zone-container">
+                    <div class="text-center py-5">
+                        <p class="text-muted">Select a camera to configure desk zones</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Productivity by Camera</h5>
+            </div>
+            <div class="card-body">
+                <div class="productivity-chart-container">
+                    <canvas id="productivityByCamera"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-warning text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-pie me-2"></i>Productivity Distribution</h5>
+            </div>
+            <div class="card-body">
+                <div class="productivity-chart-container">
+                    <canvas id="productivityDistribution"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/interactjs/dist/interact.min.js"></script>
+<script>
+    // Charts
+    let productivityByCamera;
+    let productivityDistribution;
+    
+    // Initialize charts
+    function initCharts() {
+        // Productivity by camera chart
+        const cameraCtx = document.getElementById('productivityByCamera').getContext('2d');
+        productivityByCamera = new Chart(cameraCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Average Productivity Score',
+                    data: [],
+                    backgroundColor: 'rgba(23, 162, 184, 0.5)',
+                    borderColor: 'rgba(23, 162, 184, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: function(value) {
+                                return value + '%';
+                            }
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Productivity distribution chart
+        const distributionCtx = document.getElementById('productivityDistribution').getContext('2d');
+        productivityDistribution = new Chart(distributionCtx, {
+            type: 'pie',
+            data: {
+                labels: ['High (70-100%)', 'Medium (30-70%)', 'Low (0-30%)'],
+                datasets: [{
+                    data: [0, 0, 0],
+                    backgroundColor: [
+                        'rgba(40, 167, 69, 0.7)',
+                        'rgba(255, 193, 7, 0.7)',
+                        'rgba(220, 53, 69, 0.7)'
+                    ],
+                    borderColor: [
+                        'rgba(40, 167, 69, 1)',
+                        'rgba(255, 193, 7, 1)',
+                        'rgba(220, 53, 69, 1)'
+                    ],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false
+            }
+        });
+    }
+    
+    // Update charts with productivity data
+    function updateCharts(productivityData) {
+        // Process data for charts
+        const cameraProductivity = {};
+        let highCount = 0;
+        let mediumCount = 0;
+        let lowCount = 0;
+        
+        productivityData.forEach(person => {
+            // Add to camera averages
+            if (!cameraProductivity[person.camera_id]) {
+                cameraProductivity[person.camera_id] = {
+                    total: 0,
+                    count: 0
+                };
+            }
+            
+            cameraProductivity[person.camera_id].total += person.score;
+            cameraProductivity[person.camera_id].count++;
+            
+            // Count by productivity level
+            if (person.score > 70) {
+                highCount++;
+            } else if (person.score > 30) {
+                mediumCount++;
+            } else {
+                lowCount++;
+            }
+        });
+        
+        // Update productivity by camera chart
+        const cameras = Object.keys(cameraProductivity);
+        const averages = cameras.map(camera => {
+            const data = cameraProductivity[camera];
+            return data.count > 0 ? Math.round(data.total / data.count) : 0;
+        });
+        
+        productivityByCamera.data.labels = cameras;
+        productivityByCamera.data.datasets[0].data = averages;
+        productivityByCamera.update();
+        
+        // Update productivity distribution chart
+        productivityDistribution.data.datasets[0].data = [highCount, mediumCount, lowCount];
+        productivityDistribution.update();
+        
+        // Update stats
+        $('#highProductivity').text(highCount);
+        $('#mediumProductivity').text(mediumCount);
+        $('#lowProductivity').text(lowCount);
+        $('#totalIndividuals').text(productivityData.length);
+        
+        // Calculate average score
+        let totalScore = 0;
+        productivityData.forEach(person => {
+            totalScore += person.score;
+        });
+        
+        const averageScore = productivityData.length > 0 ? 
+            Math.round(totalScore / productivityData.length) : 0;
+        
+        $('#averageScore').text(averageScore + '%');
+        $('#lastUpdated').text(new Date().toLocaleTimeString());
+    }
+    
+    // Load productivity data
+    function loadProductivityData() {
+        $.getJSON('/get_productivity_data', function(data) {
+            // Update charts
+            updateCharts(data);
+            
+            // Display individual productivity cards
+            if (data.length === 0) {
+                $('#productivityContainer').html(`
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-user-clock fa-3x mb-3 text-muted"></i>
+                        <h4 class="text-muted">No productivity data available</h4>
+                        <p class="text-muted">Start monitoring cameras to track individual productivity</p>
+                    </div>
+                `);
+                return;
+            }
+            
+            let cardsHtml = '';
+            data.forEach(person => {
+                // Determine productivity level class
+                let levelClass = '';
+                if (person.score > 70) {
+                    levelClass = 'productivity-high';
+                } else if (person.score > 30) {
+                    levelClass = 'productivity-medium';
+                } else {
+                    levelClass = 'productivity-low';
+                }
+                
+                // Format time values
+                const timeInZone = formatTime(person.time_in_zone);
+                const timeOutZone = formatTime(person.time_out_zone);
+                
+                cardsHtml += `
+                    <div class="col-md-4 mb-4">
+                        <div class="card productivity-card ${levelClass}">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">ID: ${person.person_id}</h6>
+                                <span class="badge bg-info">${person.camera_id}</span>
+                            </div>
+                            <div class="card-body text-center">
+                                <div class="productivity-score">${person.score}%</div>
+                                <p class="text-muted">Productivity Score</p>
+                                
+                                <div class="time-stats">
+                                    <div class="time-in-zone">
+                                        <strong>${timeInZone}</strong>
+                                        <div class="small">At Desk</div>
+                                    </div>
+                                    <div class="time-out-zone">
+                                        <strong>${timeOutZone}</strong>
+                                        <div class="small">Away</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+            });
+            
+            $('#productivityContainer').html(cardsHtml);
+        });
+    }
+    
+    // Format seconds to HH:MM:SS
+    function formatTime(seconds) {
+        const hrs = Math.floor(seconds / 3600);
+        const mins = Math.floor((seconds % 3600) / 60);
+        const secs = seconds % 60;
+        
+        if (hrs > 0) {
+            return `${hrs}h ${mins}m ${secs}s`;
+        } else if (mins > 0) {
+            return `${mins}m ${secs}s`;
+        } else {
+            return `${secs}s`;
+        }
+    }
+    
+    // Initialize desk zone editor
+    function initDeskZoneEditor(cameraId) {
+        // Get frame dimensions (assuming 16:9 aspect ratio)
+        const container = $('#deskZoneEditor');
+        const containerWidth = container.width();
+        const containerHeight = containerWidth * (9/16);
+        
+        // Clear previous content
+        container.empty();
+        container.css('height', containerHeight + 'px');
+        
+        // Load existing desk zones
+        $.getJSON('/get_desk_zones', function(allZones) {
+            if (cameraId in allZones) {
+                const zones = allZones[cameraId];
+                
+                // Create desk zone elements
+                for (const [deskId, zone] of Object.entries(zones)) {
+                    const [x, y, width, height] = zone;
+                    
+                    // Create desk zone element
+                    const deskElement = $(`<div class="desk-zone" data-desk-id="${deskId}">Desk ${deskId}</div>`);
+                    deskElement.css({
+                        left: x + 'px',
+                        top: y + 'px',
+                        width: width + 'px',
+                        height: height + 'px'
+                    });
+                    
+                    container.append(deskElement);
+                    
+                    // Make it draggable and resizable
+                    makeInteractive(deskElement[0]);
+                }
+            } else {
+                // No zones defined yet, show placeholder
+                container.html(`
+                    <div class="text-center py-5">
+                        <p class="text-muted">No desk zones defined for this camera</p>
+                        <p class="text-muted">Select a desk number and draw a zone on the frame</p>
+                    </div>
+                `);
+            }
+        });
+    }
+    
+    // Make desk zone elements interactive (draggable/resizable)
+    function makeInteractive(element) {
+        interact(element)
+            .draggable({
+                inertia: true,
+                modifiers: [
+                    interact.modifiers.restrictRect({
+                        restriction: 'parent',
+                        endOnly: true
+                    })
+                ],
+                autoScroll: true,
+                listeners: {
+                    move: dragMoveListener
+                }
+            })
+            .resizable({
+                edges: { left: true, right: true, bottom: true, top: true },
+                restrictEdges: {
+                    outer: 'parent',
+                    endOnly: true
+                },
+                restrictSize: {
+                    min: { width: 50, height: 50 }
+                },
+                inertia: true
+            })
+            .on('resizemove', resizeListener);
+    }
+    
+    function dragMoveListener(event) {
+        const target = event.target;
+        
+        // Keep the dragged position in the data-x/data-y attributes
+        const x = (parseFloat(target.getAttribute('data-x')) || 0) + event.dx;
+        const y = (parseFloat(target.getAttribute('data-y')) || 0) + event.dy;
+        
+        // Update element position
+        target.style.transform = `translate(${x}px, ${y}px)`;
+        
+        // Update position attributes
+        target.setAttribute('data-x', x);
+        target.setAttribute('data-y', y);
+    }
+    
+    function resizeListener(event) {
+        const target = event.target;
+        
+        let x = (parseFloat(target.getAttribute('data-x')) || 0);
+        let y = (parseFloat(target.getAttribute('data-y')) || 0);
+        
+        // Update element dimensions
+        target.style.width = event.rect.width + 'px';
+        target.style.height = event.rect.height + 'px';
+        
+        // Translate when resizing from top or left
+        x += event.deltaRect.left;
+        y += event.deltaRect.top;
+        
+        target.style.transform = `translate(${x}px, ${y}px)`;
+        
+        target.setAttribute('data-x', x);
+        target.setAttribute('data-y', y);
+    }
+    
+    // Save desk zone configuration
+    function saveDeskZone() {
+        const cameraId = $('#cameraSelect').val();
+        const deskId = $('#deskSelect').val();
+        
+        if (!cameraId || !deskId) {
+            alert('Please select both a camera and desk number');
+            return;
+        }
+        
+        // Get desk zone element
+        const deskElement = $(`.desk-zone[data-desk-id="${deskId}"]`);
+        
+        // If desk zone doesn't exist yet, create it
+        if (deskElement.length === 0) {
+            // Create a new desk zone in the center
+            const container = $('#deskZoneEditor');
+            const containerWidth = container.width();
+            const containerHeight = container.height();
+            
+            const zoneWidth = 150;
+            const zoneHeight = 150;
+            const x = (containerWidth - zoneWidth) / 2;
+            const y = (containerHeight - zoneHeight) / 2;
+            
+            // Send to server
+            $.ajax({
+                url: '/update_desk_zone',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    camera_id: cameraId,
+                    desk_id: deskId,
+                    x: x,
+                    y: y,
+                    width: zoneWidth,
+                    height: zoneHeight
+                }),
+                success: function(response) {
+                    // Reload desk zone editor
+                    initDeskZoneEditor(cameraId);
+                }
+            });
+        } else {
+            // Get position and size of existing desk zone
+            const x = parseFloat(deskElement.css('left')) + (parseFloat(deskElement.attr('data-x')) || 0);
+            const y = parseFloat(deskElement.css('top')) + (parseFloat(deskElement.attr('data-y')) || 0);
+            const width = parseFloat(deskElement.css('width'));
+            const height = parseFloat(deskElement.css('height'));
+            
+            // Send to server
+            $.ajax({
+                url: '/update_desk_zone',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({
+                    camera_id: cameraId,
+                    desk_id: deskId,
+                    x: x,
+                    y: y,
+                    width: width,
+                    height: height
+                }),
+                success: function(response) {
+                    // Reload desk zone editor
+                    initDeskZoneEditor(cameraId);
+                }
+            });
+        }
+    }
+    
+    $(document).ready(function() {
+        // Initialize charts
+        initCharts();
+        
+        // Load initial productivity data
+        loadProductivityData();
+        
+        // Set up refresh button
+        $('#refreshProductivity').click(function() {
+            loadProductivityData();
+        });
+        
+        // Set up auto-refresh
+        setInterval(loadProductivityData, 10000); // Refresh every 10 seconds
+        
+        // Handle camera selection for desk zone editor
+        $('#cameraSelect').change(function() {
+            const cameraId = $(this).val();
+            if (cameraId) {
+                initDeskZoneEditor(cameraId);
+            }
+        });
+        
+        // Handle save desk zone button
+        $('#saveDeskZone').click(saveDeskZone);
+        
+        // Handle select all checkbox
+        $('#selectAll').change(function() {
+            $('.video-checkbox').prop('checked', $(this).prop('checked'));
+        });
+        
+        // Update select all when individual checkboxes change
+        $('.video-checkbox').change(function() {
+            if ($('.video-checkbox:checked').length === $('.video-checkbox').length) {
+                $('#selectAll').prop('checked', true);
+            } else {
+                $('#selectAll').prop('checked', false);
+            }
+        });
+        
+        // Start monitoring button
+        $('#startMonitoring').click(function() {
+            const selectedVideos = [];
+            $('.video-checkbox:checked').each(function() {
+                selectedVideos.push($(this).val());
+            });
+            
+            if (selectedVideos.length === 0) {
+                alert('Please select at least one camera feed');
+                return;
+            }
+            
+            // Send request to start processing
+            $.ajax({
+                url: '/start_processing',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ videos: selectedVideos }),
+                success: function(response) {
+                    alert('Started monitoring ' + selectedVideos.length + ' camera feeds');
+                    
+                    // Load productivity data after a short delay
+                    setTimeout(loadProductivityData, 2000);
+                }
+            });
+        });
+    });
+</script>
+{% endblock %}

@@ -1,0 +1,191 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    .video-container {
+        position: relative;
+        width: 100%;
+        height: 0;
+        padding-bottom: 56.25%;
+        margin-bottom: 20px;
+        background-color: #000;
+        border-radius: 5px;
+        overflow: hidden;
+    }
+    
+    .video-feed {
+        position: absolute;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+    }
+    
+    .video-title {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        background-color: rgba(0,0,0,0.7);
+        color: white;
+        padding: 5px 10px;
+        border-radius: 3px;
+        z-index: 10;
+    }
+    
+    .video-selection {
+        max-height: 300px;
+        overflow-y: auto;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-3">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-cctv me-2"></i>Camera Selection</h5>
+            </div>
+            <div class="card-body">
+                <div class="video-selection">
+                    <div class="form-check">
+                        <input class="form-check-input select-all" type="checkbox" id="selectAll">
+                        <label class="form-check-label" for="selectAll">
+                            <strong>Select All</strong>
+                        </label>
+                    </div>
+                    <hr>
+                    {% for video in videos %}
+                    <div class="form-check">
+                        <input class="form-check-input video-checkbox" type="checkbox" value="{{ video }}" id="video-{{ loop.index }}">
+                        <label class="form-check-label" for="video-{{ loop.index }}">
+                            {{ video }}
+                        </label>
+                    </div>
+                    {% endfor %}
+                </div>
+                <button id="startProcessing" class="btn btn-success w-100 mt-3">
+                    <i class="fas fa-play me-2"></i>Start Processing
+                </button>
+            </div>
+        </div>
+        
+        <div class="card mt-3">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-info-circle me-2"></i>System Status</h5>
+            </div>
+            <div class="card-body">
+                <p><strong>Active Cameras:</strong> <span id="activeCameras">0</span></p>
+                <p><strong>Detected Individuals:</strong> <span id="detectedIndividuals">0</span></p>
+                <p><strong>Cross-Camera Matches:</strong> <span id="crossCameraMatches">0</span></p>
+                <p><strong>Last Updated:</strong> <span id="lastUpdated">-</span></p>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-9">
+        <div class="card">
+            <div class="card-header bg-dark text-white">
+                <h5 class="mb-0"><i class="fas fa-video me-2"></i>Live Camera Feeds</h5>
+            </div>
+            <div class="card-body">
+                <div id="videoFeeds" class="row">
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-video fa-3x mb-3 text-muted"></i>
+                        <h4 class="text-muted">Select cameras to start monitoring</h4>
+                        <p class="text-muted">Use the panel on the left to select which camera feeds to monitor</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+    $(document).ready(function() {
+        // Handle select all checkbox
+        $('#selectAll').change(function() {
+            $('.video-checkbox').prop('checked', $(this).prop('checked'));
+        });
+        
+        // Update select all when individual checkboxes change
+        $('.video-checkbox').change(function() {
+            if ($('.video-checkbox:checked').length === $('.video-checkbox').length) {
+                $('#selectAll').prop('checked', true);
+            } else {
+                $('#selectAll').prop('checked', false);
+            }
+        });
+        
+        // Start processing button
+        $('#startProcessing').click(function() {
+            const selectedVideos = [];
+            $('.video-checkbox:checked').each(function() {
+                selectedVideos.push($(this).val());
+            });
+            
+            if (selectedVideos.length === 0) {
+                alert('Please select at least one camera feed');
+                return;
+            }
+            
+            // Send request to start processing
+            $.ajax({
+                url: '/start_processing',
+                type: 'POST',
+                contentType: 'application/json',
+                data: JSON.stringify({ videos: selectedVideos }),
+                success: function(response) {
+                    // Clear existing video feeds
+                    $('#videoFeeds').empty();
+                    
+                    // Create video containers for each selected feed
+                    let videoGrid = '';
+                    const colSize = selectedVideos.length === 1 ? 12 : 
+                                   (selectedVideos.length <= 2 ? 6 : 
+                                   (selectedVideos.length <= 4 ? 6 : 4));
+                    
+                    selectedVideos.forEach(function(video) {
+                        videoGrid += `
+                            <div class="col-md-${colSize} mb-4">
+                                <div class="video-container">
+                                    <div class="video-title">${video}</div>
+                                    <img src="/video_feed/${video}" class="video-feed" alt="${video}">
+                                </div>
+                            </div>
+                        `;
+                    });
+                    
+                    $('#videoFeeds').html(videoGrid);
+                    $('#activeCameras').text(selectedVideos.length);
+                    
+                    // Start periodic updates for system status
+                    startStatusUpdates();
+                },
+                error: function(error) {
+                    console.error('Error starting processing:', error);
+                    alert('Error starting video processing. Please try again.');
+                }
+            });
+        });
+        
+        // Function to update system status
+        function updateSystemStatus() {
+            $.getJSON('/get_matches', function(data) {
+                $('#detectedIndividuals').text(Object.keys(data).length);
+                $('#crossCameraMatches').text(data.filter(match => match.cameras.length > 1).length);
+                $('#lastUpdated').text(new Date().toLocaleTimeString());
+            });
+        }
+        
+        // Start periodic status updates
+        function startStatusUpdates() {
+            updateSystemStatus();
+            setInterval(updateSystemStatus, 5000); // Update every 5 seconds
+        }
+    });
+</script>
+{% endblock %}

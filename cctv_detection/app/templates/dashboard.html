@@ -1,0 +1,387 @@
+{% extends 'base.html' %}
+
+{% block extra_css %}
+<style>
+    .match-card {
+        transition: all 0.3s ease;
+    }
+    
+    .match-card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 10px 20px rgba(0,0,0,0.1);
+    }
+    
+    .camera-badge {
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+    
+    .metrics-card {
+        border-left: 4px solid;
+    }
+    
+    .metric-icon {
+        font-size: 2.5rem;
+        opacity: 0.7;
+    }
+    
+    .chart-container {
+        height: 300px;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="row mb-4">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-primary text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Detection Dashboard</h5>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-3">
+        <div class="card metrics-card border-primary">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-8">
+                        <h5 class="card-title text-muted">Total Individuals</h5>
+                        <h2 class="mb-0" id="totalIndividuals">0</h2>
+                    </div>
+                    <div class="col-4 text-end">
+                        <i class="fas fa-users metric-icon text-primary"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card metrics-card border-success">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-8">
+                        <h5 class="card-title text-muted">Cross-Camera Matches</h5>
+                        <h2 class="mb-0" id="totalMatches">0</h2>
+                    </div>
+                    <div class="col-4 text-end">
+                        <i class="fas fa-exchange-alt metric-icon text-success"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card metrics-card border-info">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-8">
+                        <h5 class="card-title text-muted">Active Cameras</h5>
+                        <h2 class="mb-0" id="activeCameras">0</h2>
+                    </div>
+                    <div class="col-4 text-end">
+                        <i class="fas fa-video metric-icon text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-3">
+        <div class="card metrics-card border-warning">
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-8">
+                        <h5 class="card-title text-muted">Detection Rate</h5>
+                        <h2 class="mb-0" id="detectionRate">0/min</h2>
+                    </div>
+                    <div class="col-4 text-end">
+                        <i class="fas fa-tachometer-alt metric-icon text-warning"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row mb-4">
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-info text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-bar me-2"></i>Detections by Camera</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="cameraDetectionsChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="col-md-6">
+        <div class="card">
+            <div class="card-header bg-success text-white">
+                <h5 class="mb-0"><i class="fas fa-chart-line me-2"></i>Detection Timeline</h5>
+            </div>
+            <div class="card-body">
+                <div class="chart-container">
+                    <canvas id="detectionTimelineChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <div class="col-12">
+        <div class="card">
+            <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                <h5 class="mb-0"><i class="fas fa-exchange-alt me-2"></i>Cross-Camera Matches</h5>
+                <button id="refreshMatches" class="btn btn-sm btn-outline-light">
+                    <i class="fas fa-sync-alt me-1"></i>Refresh
+                </button>
+            </div>
+            <div class="card-body">
+                <div id="matchesContainer" class="row">
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-spinner fa-spin fa-3x mb-3 text-muted"></i>
+                        <h4 class="text-muted">Loading matches...</h4>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+    // Dashboard data
+    let detectionData = {
+        individuals: 0,
+        matches: 0,
+        cameras: 0,
+        detectionRate: 0,
+        detectionsByCamera: {},
+        detectionTimeline: {},
+        lastUpdated: null
+    };
+    
+    // Charts
+    let cameraDetectionsChart;
+    let detectionTimelineChart;
+    
+    // Initialize charts
+    function initCharts() {
+        // Camera detections chart
+        const cameraCtx = document.getElementById('cameraDetectionsChart').getContext('2d');
+        cameraDetectionsChart = new Chart(cameraCtx, {
+            type: 'bar',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Individuals Detected',
+                    data: [],
+                    backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                    borderColor: 'rgba(54, 162, 235, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Detection timeline chart
+        const timelineCtx = document.getElementById('detectionTimelineChart').getContext('2d');
+        detectionTimelineChart = new Chart(timelineCtx, {
+            type: 'line',
+            data: {
+                labels: [],
+                datasets: [{
+                    label: 'Detections',
+                    data: [],
+                    fill: false,
+                    borderColor: 'rgba(75, 192, 192, 1)',
+                    tension: 0.1
+                }]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            precision: 0
+                        }
+                    }
+                }
+            }
+        });
+    }
+    
+    // Update charts with new data
+    function updateCharts() {
+        // Update camera detections chart
+        const cameras = Object.keys(detectionData.detectionsByCamera);
+        const counts = cameras.map(camera => detectionData.detectionsByCamera[camera]);
+        
+        cameraDetectionsChart.data.labels = cameras;
+        cameraDetectionsChart.data.datasets[0].data = counts;
+        cameraDetectionsChart.update();
+        
+        // Update detection timeline chart
+        const timePoints = Object.keys(detectionData.detectionTimeline).sort();
+        const timeValues = timePoints.map(time => detectionData.detectionTimeline[time]);
+        
+        detectionTimelineChart.data.labels = timePoints;
+        detectionTimelineChart.data.datasets[0].data = timeValues;
+        detectionTimelineChart.update();
+    }
+    
+    // Update dashboard metrics
+    function updateMetrics(matches) {
+        // Count unique individuals
+        const uniqueIds = new Set();
+        matches.forEach(match => uniqueIds.add(match.id));
+        
+        // Count cameras
+        const cameras = new Set();
+        matches.forEach(match => {
+            match.cameras.forEach(camera => cameras.add(camera));
+        });
+        
+        // Update detection data
+        detectionData.individuals = uniqueIds.size;
+        detectionData.matches = matches.filter(match => match.cameras.length > 1).length;
+        detectionData.cameras = cameras.size;
+        
+        // Update detection by camera
+        const cameraDetections = {};
+        cameras.forEach(camera => cameraDetections[camera] = 0);
+        
+        matches.forEach(match => {
+            match.cameras.forEach(camera => {
+                cameraDetections[camera]++;
+            });
+        });
+        
+        detectionData.detectionsByCamera = cameraDetections;
+        
+        // Update timeline (simplified - in a real app, this would use actual timestamps)
+        const now = new Date();
+        const timeKey = now.getHours() + ':' + (now.getMinutes() < 10 ? '0' : '') + now.getMinutes();
+        
+        if (!detectionData.detectionTimeline[timeKey]) {
+            detectionData.detectionTimeline[timeKey] = 0;
+        }
+        detectionData.detectionTimeline[timeKey] += 1;
+        
+        // Keep only the last 10 time points
+        const timeKeys = Object.keys(detectionData.detectionTimeline).sort();
+        if (timeKeys.length > 10) {
+            delete detectionData.detectionTimeline[timeKeys[0]];
+        }
+        
+        // Calculate detection rate (per minute)
+        detectionData.detectionRate = Math.round(uniqueIds.size / 5 * 60);
+        
+        // Update UI
+        $('#totalIndividuals').text(detectionData.individuals);
+        $('#totalMatches').text(detectionData.matches);
+        $('#activeCameras').text(detectionData.cameras);
+        $('#detectionRate').text(detectionData.detectionRate + '/min');
+        
+        // Update charts
+        updateCharts();
+    }
+    
+    // Load and display matches
+    function loadMatches() {
+        $.getJSON('/get_matches', function(matches) {
+            // Update metrics
+            updateMetrics(matches);
+            
+            // Display matches
+            if (matches.length === 0) {
+                $('#matchesContainer').html(`
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-search fa-3x mb-3 text-muted"></i>
+                        <h4 class="text-muted">No cross-camera matches found yet</h4>
+                        <p class="text-muted">Matches will appear here when the same individual is detected across multiple cameras</p>
+                    </div>
+                `);
+                return;
+            }
+            
+            let matchesHtml = '';
+            matches.forEach(match => {
+                // Only show cross-camera matches
+                if (match.cameras.length > 1) {
+                    const cameraBadges = match.cameras.map(camera => 
+                        `<span class="badge bg-info camera-badge">${camera}</span>`
+                    ).join('');
+                    
+                    matchesHtml += `
+                        <div class="col-md-4 mb-4">
+                            <div class="card match-card">
+                                <div class="card-header bg-dark text-white">
+                                    <h6 class="mb-0">ID: ${match.id}</h6>
+                                </div>
+                                <div class="card-body">
+                                    <p><strong>First Seen:</strong> ${match.first_seen}</p>
+                                    <p><strong>Last Seen:</strong> ${match.last_seen}</p>
+                                    <p><strong>Cameras:</strong><br>${cameraBadges}</p>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }
+            });
+            
+            if (matchesHtml === '') {
+                $('#matchesContainer').html(`
+                    <div class="col-12 text-center py-5">
+                        <i class="fas fa-search fa-3x mb-3 text-muted"></i>
+                        <h4 class="text-muted">No cross-camera matches found yet</h4>
+                        <p class="text-muted">Matches will appear here when the same individual is detected across multiple cameras</p>
+                    </div>
+                `);
+            } else {
+                $('#matchesContainer').html(matchesHtml);
+            }
+        });
+    }
+    
+    $(document).ready(function() {
+        // Initialize charts
+        initCharts();
+        
+        // Load initial data
+        loadMatches();
+        
+        // Set up refresh button
+        $('#refreshMatches').click(function() {
+            loadMatches();
+        });
+        
+        // Set up auto-refresh
+        setInterval(loadMatches, 10000); // Refresh every 10 seconds
+    });
+</script>
+{% endblock %}
